@@ -77,6 +77,9 @@ import pkg_resources
 import csv
 import time
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+import queue
 
 '''
 some explenation on external imports for me to remember
@@ -566,8 +569,7 @@ def run_plumm_exp():
 
         #close and clean
         dataFile_plumm.abort() #to prevent double save
-        win.close()
-        core.quit()
+        
 
 """
 Chord/harmony paradigm
@@ -819,17 +821,23 @@ def run_chord_exp():
 
         #close and clean
         dataFile_chord.abort() #to prevent double save
-        win.close()
-        core.quit()
+        
 
 """
-Spntaneous tapping recording
+needed for tap experiments
+"""
+
+def tap_data_file():
+    global tap_filename
+    tap_filename = data_path + os.sep + settings['subject'] + '_' + 'tap_' + settings['date'] + '_' + settings['exp_name']
+
+"""
+Spontaneous tapping task
 """
 
 def run_spon_tap():
     if settings['run_type_spon_tap'] in ['exp', 'training']: #if off dont run this
-        global spon_filename
-        spon_filename = data_path + os.sep + settings['subject'] + '_' + 'tap_' + settings['date'] + '_' + settings['exp_name']
+        
         # Create a "Thank you" message
         welcome = visual.TextStim(win, text="Thank you for participating!\n\n" \
                                     "Press space to continue" 
@@ -957,7 +965,7 @@ def run_spon_tap():
             print(f"Data and settings saved to {filename}")
 
         #Call the save_to_csv function to save the collected data
-        save_to_csv(spon_filename, spon_tap_data)
+        save_to_csv(tap_filename, spon_tap_data)
 
         # Display the "Thank you" message until space
         end.draw()
@@ -967,212 +975,250 @@ def run_spon_tap():
         print("Hooray another data set")
 
         # Close the window and end the experiment
-        win.close()
-        core.quit()
-
+        
 """
 synchronization continuation tapping task under construction
 """
 
 def run_sync_tap():
-    if settings['run_type_sync_tap'] in ['exp', 'training']: #if off dont run this
-        #Construct the path to the CSV file inside the stimuli folder both for the exp and training session
-        if settings['run_type_spon_tap'] == 'exp':
-            csv_list = os.path.join(stimuli_path_sync_tap, "stim_list_tap.csv")
-        else:
-            csv_list = os.path.join(stimuli_path_sync_tap, "stim_list_tap.csv")
-
-    #Instructions sync tap message
-    instr_sync_tap = visual.TextStim(win, text= "Tap on the MIDI pad with the beat of the track after the count in.\n\n" \
+    if settings['run_type_sync_tap'] in ['exp', 'training']:
+        #Instructions sync tap message
+        instr_sync_tap = visual.TextStim(win, text= "Tap on the MIDI pad with the beat of the track after the count in.\n\n" \
                                    "Press space to start" 
                                     , pos=(0, 0))
-    #make fixation cross                          
-    fixation = visual.ShapeStim(win,
+        
+        # Create a "Thank you" message end  
+        end = visual.TextStim(win, text="Thank you for participating!\n\n" \
+                                   "Press space to end" 
+                                   , pos=(0, 0))
+        
+        #make fixation cross                          
+        fixation = visual.ShapeStim(win,
                                 vertices=((0, -0.15), (0, 0.15), (0, 0),
                                         (-0.1, 0), (0.1, 0)),
                                 lineWidth=13,
                                 closeShape=False,
                                 lineColor='white')
-    
-    # Create a "Thank you" message end
-    end = visual.TextStim(win, text="Thank you for participating!\n\n" \
-                                   "Press space to end" 
+        # Create a "Thank you" message
+        welcome = visual.TextStim(win, text="Thank you for participating!\n\n" \
+                                   "Press space to continue" 
                                    , pos=(0, 0))
-    
-    #tibble to push data in
-    sync_tap_data = []
-    
-    #Read audio file names/tap along stimuli from the CSV file
-    audio_files = []
-    if settings['run_type_sync_tap'] == 'exp':
-        audio_files_df = pd.read_csv('stim_list_tap.csv', sep=';')
-        audio_files = audio_files_df['sync_stim_name'].tolist()
-    else:
-        audio_files_df = pd.read_csv('stim_list_tap_train.csv', sep=';')
-        audio_files = audio_files_df['sync_stim_name'].tolist()
-
-
-    #Shuffle the audio files for random order of stimuli presentation
-    random.shuffle(audio_files)
-
-    # Create a list to preload audio files
-    preloaded_audio = []
-    audio_file_names = []
-
-    # Preload all audio files as objects and their names and get full duration
-    #create empty variable to fill
-    total_duration_sync_audio = 0
-
-    
-    for audio_file in audio_files:
-        preloaded_audio.append(sound.Sound(audio_file)) #store sound object
-        audio_file_names.append(audio_file)  # Store the file name
-        audio = sound.Sound(audio_file) #get the full duration of all audio files
-        total_duration_sync_audio += audio.getDuration()
-
-    # Add sync_break_duration seconds between each audio file
-    total_duration_sync_audio += (len(audio_files) - 1) * settings['sync_break_duration'] #fill the empty variable
-
-    #Function to trigger an audio file for sync trial
-    def trigger_audio(audio):
-    # Play the audio file
-        audio.play()
-        print(f"Playing audio file: {audio}")
-        core.wait(audio.getDuration())
-        audio.stop()
-
-        #Set the flag to signal the audio playback thread to stop
-        #global audio_thread_running
-        #audio_thread_running = False
-
-    #Create a thread to play audiofor sync trial
-    def audio_thread(audio_file, audio_onset_time):
-        global audio_close_time #make it global so the tap thread can access it
-        audio_duration = audio_file.getDuration()
-        audio_close_time = audio_onset_time + audio_duration
-        trigger_audio(audio_file)
-
-        while time.time() < audio_close_time:
-            pass #keep this active until fully played the file
-
-        #Set the flag to signal the tap thread to stop
-        global tap_thread_running
-        tap_thread_running = False
-
-    #Create a thread for tap event recording
-    def tap_sync_thread():
-        start_tap_time = time.time() #timestamp of when this thread was activated
-        tap_time_offset = 0  #tap time starts at 0 for every audio file
-        while tap_thread_running:
-            for msg in midi_input.iter_pending():
-                if msg.type == 'note_on':
-                    current_tap_time = time.time() #time stamp of when the tap happend
-                    tap_time = tap_time_offset + current_tap_time - start_tap_time
-                    tap_velocity = msg.velocity
-                    
-                    # Create a dictionary to store tap data
-                    sync_tap_entry = {
-                        'tap_timing(s)': tap_time,
-                        'tap_velocity(s)': tap_velocity,
-                        'audio_file': audio_file_name,
-                        'audio_onset_timing(s)': audio_onset_time,
-                        'audio_close_timing(s)': audio_close_time,
-                        'task': 'sync_tap'
-                    }
-                    
-                    # Add settings data to the single tap entry
-                    sync_tap_entry.update(settings)
-                    
-                    # Append the tap entry to the list of full tap data
-                    sync_tap_data.append(sync_tap_entry)    
-
-
-    #draw instructions depending what has been chosen
-    instr_sync_tap.draw()
-    win.flip()
-    event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
-
-    ###start of the trial###
-    try:
-        midi_input = mido.open_input('Arturia BeatStep')
-        print("Using Arturia BeatStep MIDI input.")
-    except IOError:
-    # If 'Arturia BeatStep' is not available, try to open 'APC Key 25'
-        try:
-            midi_input = mido.open_input('APC Key 25')
-            print("Using APC Key 25 MIDI input.")
-        except IOError:
-            # If both devices are unavailable, handle the error or set a default input
-            print("No suitable MIDI input found. Handle the error or set a default input.")
-
-    #clock for the sync trial
-    start_sync_time = time.time()
-
-    #clock main
-    while time.time() - start_sync_time < total_duration_sync_audio:
-       
-    #Check if there are more audio files to process it goes through the whole list
-        if preloaded_audio:
-            fixation.draw()
-            win.flip()
-            # Trigger audio file and record onset time
-            audio_file = preloaded_audio.pop(0)  # Take the first audio file in the list and erase it from the list
-            audio_file_name = audio_file_names.pop(0) #we need the name as well
-            audio_onset_time = time.time() - start_sync_time  # Calculate onset time once for the trial
-
-            #Start audio playback thread
-            audio_playback_thread = threading.Thread(target=audio_thread, args=(audio_file, audio_onset_time))
-            audio_playback_thread.start()
-
-            #Reset the flag to ensure tap thread runs
-            tap_thread_running = True
-
-            #Start tap event recording thread
-            tap_recording_thread = threading.Thread(target=tap_sync_thread)
-            tap_recording_thread.start()
-
-            #Wait for audio playback thread to complete
-            audio_playback_thread.join()
-
-        #a break before the next audio file
-        time.sleep(settings['sync_break_duration'])
-
-    #change working directory back to the path of the python file to save correctly
-    os.chdir(my_path)
-
-    #i made this for individual task maybe not nice but just to be sure data from seperate tasks is handled seperatly
-    def append_to_csv_sync(filename, tap_data):
-        if not tap_data:
-            print("No data to append.")
-            return
-        if not filename.endswith(".csv"):
-            filename += ".csv" #if the filename doesnt have the extension .csv add it
-        with open(filename, 'a', newline='') as csvfile: #a means append
-            csvwriter = csv.DictWriter(csvfile,  fieldnames=tap_data[0].keys())
-
-            # Write tap data without writing headers again
-            csvwriter.writerows(tap_data)
-
-    # Call the append_to_csv function to append the collected data to the existing CSV file
-
-    append_to_csv_sync(spon_filename, sync_tap_data)
-
-    print(f"Data appended to {spon_filename}")
-
-    #Close the MIDI input when the experiment is done
-    midi_input.close()
-
-    # Display the "Thank you" message until space
-    end.draw()
-    win.flip()
-    event.waitKeys(keyList = [keyNext])   # key stroke ends it all
-
-    print("Hooray another data set")
-
-    # Close the window and end the experiment
-    win.close()
-    core.quit()
-
-
-   
         
+        #draw instructions depending what has been chosen
+        welcome.draw()
+        win.flip()
+        event.waitKeys(keyList = [keyNext])
+        
+        sync_tap_data = []
+
+        try:
+            midi_input = mido.open_input('Arturia BeatStep')
+            print("Using Arturia BeatStep MIDI input.")
+        except IOError:
+        # If 'Arturia BeatStep' is not available, try to open 'APC Key 25'
+            try:
+                midi_input = mido.open_input('APC Key 25')
+                print("Using APC Key 25 MIDI input.")
+            except IOError:
+            # If both devices are unavailable, handle the error or set a default input
+                print("No suitable MIDI input found. Handle the error or set a default input.")
+
+
+        #change cwd to the stimuli map otherwise it cannot trigger the files from the map
+        os.chdir(stimuli_path_sync_tap)
+
+        #Read audio file names/tap along stimuli from the CSV file
+        audio_files = []
+        if settings['run_type_sync_tap'] == 'exp':
+            audio_files_df = pd.read_csv('stim_list_tap.csv', sep=';')
+            audio_files = audio_files_df['sync_stim_name'].tolist()
+        else:
+            audio_files_df = pd.read_csv('stim_list_tap_train.csv', sep=';')
+            audio_files = audio_files_df['sync_stim_name'].tolist()
+
+
+        #Shuffle the audio files for random order of stimuli presentation
+        random.shuffle(audio_files)
+
+        # Create a list to preload audio files
+        preloaded_audio = []
+        audio_file_names = []
+
+        # Preload all audio files as objects and their names and get full duration
+        #create empty variable to fill
+        total_duration_sync_audio = 0
+
+        for audio_file in audio_files:
+            preloaded_audio.append(sound.Sound(audio_file)) #store sound object
+            audio_file_names.append(audio_file)  # Store the file name
+            audio = sound.Sound(audio_file) #get the full duration of all audio files
+            total_duration_sync_audio += audio.getDuration()
+
+        # Add sync_break_duration seconds between each audio file
+        total_duration_sync_audio += (len(audio_files) - 1) * settings['sync_break_duration'] #fill the empty variable
+
+        #Function to trigger an audio file for sync trial
+        def trigger_audio(audio):
+            # Play the audio file
+            audio.play()
+            print(f"Playing audio file: {audio}")
+            core.wait(audio.getDuration())
+            audio.stop()
+
+            #Set the flag to signal the audio playback thread to stop
+            #global audio_thread_running
+            #audio_thread_running = False
+
+        #Create a thread to play audiofor sync trial
+        def audio_thread(audio_file, audio_onset_time):
+            global audio_close_time #make it global so the tap thread can access it
+            audio_duration = audio_file.getDuration()
+            audio_close_time = audio_onset_time + audio_duration
+            trigger_audio(audio_file)
+
+
+            #while time.time() < audio_close_time:
+            #    pass #keep this active until fully played the file
+
+            #global tap_thread_running
+            #tap_thread_running = False
+            #print("audio/tap thread completed")
+
+        # Create a queue for communication between threads midi and midi calcultations
+        tap_queue = queue.Queue()
+
+        #Create a thread for tap event recording
+        def tap_sync_thread():
+            global start_tap_time
+            start_tap_time = time.time()
+            while tap_thread_running:
+                for msg in midi_input.iter_pending():
+                    if msg.type == 'note_on':
+                        #time stamp of when the tap happend it freaks out here cannot process it fast enough if there al calculations here
+                        tap_time = time.time() #+ start_tap_time #processing slow bs going on here because runs perfect wathever you want here when not in a function..
+                        tap_velocity = msg.velocity
+                        
+                        # Create a dictionary to store tap data
+                        sync_tap_entry = {
+                            'tap_timing(s)': tap_time, 
+                            'tap_velocity(s)': tap_velocity,
+                            'audio_file': audio_file_name,
+                            'audio_onset_timing(s)': audio_onset_time,
+                            'audio_close_timing(s)': audio_close_time,
+                            'task': 'sync_tap'
+                        }
+                        
+                        # Add settings data to the single tap entry
+                        sync_tap_entry.update(settings)
+                        
+                        # Append the tap entry to the list of full tap data
+                        #sync_tap_data.append(sync_tap_entry)
+
+                        # Put the tap entry in the queue
+                        tap_queue.put(sync_tap_entry)
+
+        
+        # Function to modify 'tap_timing(s)' values in existing entries
+        def modify_tap_timings():
+            while tap_thread_running:
+                try:
+                    # Get a tap entry from the queue
+                    sync_tap_entry = tap_queue.get(timeout=1)  # Adjust the timeout as needed
+
+                    # Modify 'tap_timing(s)' value by subtracting start_tap_time
+                    sync_tap_entry['tap_timing(s)'] -= start_tap_time
+
+                    # Append the modified tap entry to the list of full tap data
+                    sync_tap_data.append(sync_tap_entry)
+                except queue.Empty:
+                    pass  # Continue the loop if the queue is empty
+
+
+        #draw instructions depending what has been chosen
+        instr_sync_tap.draw()
+        win.flip()
+        event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
+
+        ###start of the trial###
+        #clock for the sync trial
+        start_sync_time = time.time()
+
+        #clock main
+        while time.time() - start_sync_time < total_duration_sync_audio:
+            
+        #Check if there are more audio files to process it goes through the whole list
+            if preloaded_audio:
+                fixation.draw()
+                win.flip()
+                # Trigger audio file and record onset time
+                audio_file = preloaded_audio.pop(0)  # Take the first audio file in the list and erase it from the list
+                audio_file_name = audio_file_names.pop(0) #we need the name as well
+                audio_onset_time = time.time() - start_sync_time  # Calculate onset time once for the trial
+
+                #Start audio playback thread
+                audio_playback_thread = threading.Thread(target=audio_thread, args=(audio_file, audio_onset_time))
+                audio_playback_thread.start()
+
+                #Reset the flag to ensure tap thread runs
+                tap_thread_running = True
+
+                #Start tap event recording thread, also start the thread that does the calculations
+                tap_recording_thread = threading.Thread(target=tap_sync_thread)
+                modify_thread = threading.Thread(target=modify_tap_timings)
+                tap_recording_thread.start()
+                modify_thread.start()
+                
+                #Wait for audio playback thread to complete
+                audio_playback_thread.join()
+
+                # Stop tap recording thread after audio playback completes
+                tap_thread_running = False
+                tap_recording_thread.join()
+
+            #a break before the next audio file
+            time.sleep(settings['sync_break_duration'])
+
+        #change working directory back to the path of the python file to save correctly
+        os.chdir(my_path)
+
+        #i made this for individual task maybe not nice but just to be sure data from seperate tasks is handled seperatly
+        def append_to_csv_sync(filename, tap_data):
+            if not tap_data:
+                print("No data to append.")
+                return
+            if not filename.endswith(".csv"):
+                filename += ".csv" #if the filename doesnt have the extension .csv add it
+            with open(filename, 'a', newline='') as csvfile: #a means append
+                csvwriter = csv.DictWriter(csvfile,  fieldnames=tap_data[0].keys())
+
+                # Write tap data without writing headers again
+                csvwriter.writerows(tap_data)
+
+        # Call the append_to_csv function to append the collected data to the existing CSV file
+
+        append_to_csv_sync(tap_filename, sync_tap_data)
+
+        print(f"Data appended to {tap_filename}")
+
+        #Close the MIDI input when the experiment is done
+        midi_input.close()
+
+        # Display the "Thank you" message until space
+        end.draw()
+
+        #close thread!!!
+        tap_thread_running = False
+        tap_recording_thread.join()
+        modify_thread.join()
+        
+        win.flip()
+        event.waitKeys(keyList = [keyNext])   # key stroke ends it all
+
+        print("Hooray another data set")
+
+        
+
+
+
+
+
