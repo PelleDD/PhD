@@ -30,7 +30,7 @@ from contextlib import contextmanager
 import queue
 
 #custom functions
-from Main_Dopamine_PhD_PDD_BEH import run_gui_path, data_file_plumm, run_plumm_exp, tap_data_file, data_file_chord, make_list_chord, run_chord_exp, check_and_install_library, find_midi_ports, run_spon_tap, run_sync_tap #this is from the mothership
+from Main_Dopamine_PhD_PDD_BEH import run_dur_disc, run_gui_path, data_file_plumm, run_plumm_exp, tap_data_file, data_file_chord, make_list_chord, run_chord_exp, check_and_install_library, find_midi_ports, run_spon_tap, run_sync_tap #this is from the mothership
 
 #external imports for midi
 required_versions = {
@@ -73,6 +73,9 @@ run_spon_tap()
 
 #run sync tap
 run_sync_tap()
+
+#run dur disc task
+run_dur_disc()
 
 #i said shutdownnnnnn skrrt
 core.quit()

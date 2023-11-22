@@ -193,7 +193,8 @@ def run_gui_path():
                 'run_type_plumm': ['training','exp','off'], #run type for plumm paradigm or turn off
                 'run_type_chord': ['training','exp', 'off'], #run type for chord paradigm or turn off
                 'run_type_spon_tap': ['training','exp', 'off'], #run type for spontaneous tapping task 
-                'run_type_sync_tap': ['training','exp', 'off'], #run type for spontaneous tapping task 
+                'run_type_sync_tap': ['training','exp', 'off'], #run type for synchronization continuation tapping task
+                'run_type_dur_est': ['training','exp', 'off'], #run type for duration discrmination task
                 'debug': True,  # If true, small window, print extra info
                 'home_dir': my_path, #not really being used but maybe handy to see where all this stuff is running from
                 'after_stim_plumm': 0, #time between end of stim and appearance of rating scale
@@ -221,6 +222,7 @@ def run_gui_path():
     'run_type_chord',
     'run_type_spon_tap',
     'run_type_sync_tap',
+    'run_type_dur_est',
     'debug',
     'home_dir',
     'after_stim_plumm',
@@ -249,6 +251,7 @@ def run_gui_path():
     if  settings['run_type_plumm'] in ['exp', 'training'] or \
         settings['run_type_chord'] in ['exp', 'training'] or \
         settings['run_type_spon_tap'] in ['exp', 'training'] or \
+        settings['run_type_dur_disc'] in ['exp', 'training'] or \
         settings['run_type_sync_tap'] in ['exp', 'training']: #dont make a subject folder if all is off
             sub_dir = os.path.join(data_dir, sub_folder_name)
             os.makedirs(sub_dir, exist_ok=True)
@@ -1191,6 +1194,10 @@ def run_sync_tap():
             with open(filename, 'a', newline='') as csvfile: #a means append
                 csvwriter = csv.DictWriter(csvfile,  fieldnames=tap_data[0].keys())
 
+                # If the file is empty, write the headers
+                if csvfile.tell() == 0:
+                    csvwriter.writeheader()
+
                 # Write tap data without writing headers again
                 csvwriter.writerows(tap_data)
 
@@ -1216,6 +1223,95 @@ def run_sync_tap():
 
         print("Hooray another data set")
 
+"""
+duration discrimination task under construction
+"""
+
+def run_dur_est():
+    if settings['run_type_dur_est'] in ['training' or 'exp']:    
+        #make fixation cross                          
+        fixation = visual.ShapeStim(win,
+                                vertices=((0, -0.15), (0, 0.15), (0, 0),
+                                        (-0.1, 0), (0.1, 0)),
+                                lineWidth=13,
+                                closeShape=False,
+                                lineColor='white')
+        # Create a "Thank you" message
+        welcome = visual.TextStim(win, text="Thank you for participating!\n\n" \
+                                   "Press space to continue" 
+                                   , pos=(0, 0))
+        
+        # Display instructions
+        instructions = visual.TextStim(win, text='Tap the space bar once when you think a minute has elapsed.\nPress spacebar to start.',
+                                   color='white')
+        
+        thank_you_message = visual.TextStim(win, text='Thank you for participating!', color='white')
+        
+        dur_est_data = []
+
+        #draw instructions depending what has been chosen
+        welcome.draw()
+        win.flip()
+        event.waitKeys(keyList = [keyNext])
+
+        instructions.draw()
+        win.flip()
+        event.waitKeys(keyList=[keyNext])
+
+        # Start recording response time
+        start_time = time.time()
+
+        # Display fixation cross until the subject taps the MIDI pad
+        fixation.draw()
+        win.flip()
+        event.waitKeys(keyList=[keyNext])
+
+        # Record response time when the subject taps the MIDI pad
+        response_time = time.time() - start_time
+
+        # Create a dictionary to store tap data
+        dur_est_entry = {
+                            'tap_timing(s)': response_time, 
+                            'tap_velocity(s)': "",
+                            'audio_file': "",
+                            'audio_onset_timing(s)': "",
+                            'audio_close_timing(s)': "",
+                            'task': 'dur_disc'
+                        }
+                        
+        # Add settings data to the single tap entry
+        dur_est_entry.update(settings)
+
+        # Append the tap entry to the list of tap data, looopy
+        dur_est_data.append(dur_est_entry)
+
+        # Display thank you message
+        thank_you_message.draw()
+        win.flip()
+        event.waitKeys(keyList=[keyNext])
+        
+        #i made this for individual task maybe not nice but just to be sure data from seperate tasks is handled seperatly
+        def append_to_csv_sync(filename, tap_data):
+            if not tap_data:
+                print("No data to append.")
+                return
+            if not filename.endswith(".csv"):
+                filename += ".csv" #if the filename doesnt have the extension .csv add it
+            with open(filename, 'a', newline='') as csvfile: #a means append
+                csvwriter = csv.DictWriter(csvfile,  fieldnames=tap_data[0].keys())
+
+                # If the file is empty, write the headers
+                if csvfile.tell() == 0:
+                    csvwriter.writeheader()
+
+                # Write tap data without writing headers again
+                csvwriter.writerows(tap_data)
+
+        # Call the append_to_csv function to append the collected data to the existing CSV file
+
+        append_to_csv_sync(tap_filename, dur_est_data)
+
+        print(f"Data appended to {tap_filename}")
         
 
 
