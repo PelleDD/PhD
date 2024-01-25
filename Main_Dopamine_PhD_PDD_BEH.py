@@ -38,8 +38,9 @@ This Main PsychoPy file containis functions for following paradigms:
 
 - Plumm Paradigm 
 - Chord Paradigm
-- Spontaneous tapping task
-- Synchronization continuation
+- Spontaneous Tapping
+- Synchronization Continuation
+- Duration Estimation 
 
 ###---Directory Organisation---###
 - Main map
@@ -128,7 +129,7 @@ def check_and_install_library(library_name, required_version):
 # Check and install python-rtmidi
 #check_and_install_library("python-rtmidi", required_versions["python-rtmidi"])
 
-#import these external libraries
+#import these external libraries, first time comment these out and uncomment again
 import mido
 import rtmidi
 
@@ -182,18 +183,24 @@ def run_gui_path():
     stimuli_chord_path = os.path.join(cwd, "stimuli_chord")
     global stimuli_path_sync_tap
     stimuli_path_sync_tap = os.path.join(cwd, "stimuli_sync_tap")
+    global stimuli_path_sync_con_tap
+    stimuli_path_sync_con_tap = os.path.join(cwd, "stimuli_sync_con_tap")
+    global stimuli_path_tempo_tap
+    stimuli_path_tempo_tap = os.path.join(cwd, "stimuli_tempo_tap")
 
     #Set default settings, dictionary
     global settings
     settings = {
                 'subject': '0',  # Subject code use for loading/saving data
-                'gender': ['male', 'female'],
+                'gender': ['male', 'female', 'other'],
                 'age': '',
                 'session': '1', #session 
                 'run_type_plumm': ['training','exp','off'], #run type for plumm paradigm or turn off
                 'run_type_chord': ['training','exp', 'off'], #run type for chord paradigm or turn off
                 'run_type_spon_tap': ['training','exp', 'off'], #run type for spontaneous tapping task 
                 'run_type_sync_tap': ['training','exp', 'off'], #run type for synchronization continuation tapping task
+                'run_type_sync_con_tap': ['training','exp', 'off'], #run type for the synchronisation continuation tsk
+                'run_type_tempo_tap': ['training','exp', 'off'], #run type for tempo changing tapping task
                 'run_type_dur_est': ['training','exp', 'off'], #run type for duration discrmination task
                 'debug': True,  # If true, small window, print extra info
                 'home_dir': my_path, #not really being used but maybe handy to see where all this stuff is running from
@@ -204,7 +211,9 @@ def run_gui_path():
                 'after_stim_chord': 0, #time between end of stim and appearance of rating scale
                 'rating_time_chord': 7, # number of seconds to make rating
                 'spon_tap_duration': 20, # amount of taps per trial for the duration of the spontaneous tapping task
-                'sync_break_duration': 3, #time between the audio stim from the sync tap task       
+                'sync_break_duration': 3, #time between the audio stim from the sync tap task
+                'sync_con_break_duration': 4, #time between audio stim presenration for synchronisation continuation task
+                'tempo_break_duration': 3,  
             }
 
     #Push date, exp name and psychopy version into settings
@@ -218,10 +227,12 @@ def run_gui_path():
     'gender',
     'age',
     'session',
+    'run_type_spon_tap',
     'run_type_plumm',
     'run_type_chord',
-    'run_type_spon_tap',
     'run_type_sync_tap',
+    'run_type_sync_con_tap',
+    'run_type_tempo_tap',
     'run_type_dur_est',
     'debug',
     'home_dir',
@@ -232,7 +243,9 @@ def run_gui_path():
     'after_stim_chord',
     'rating_time_chord',
     'spon_tap_duration', 
-    'sync_break_duration', 
+    'sync_break_duration',
+    'sync_con_break_duration',
+    'tempo_break_duration'
     ]
 
     #create dialog box, we put this here because we need the settingssss for stuff to direct
@@ -251,7 +264,9 @@ def run_gui_path():
     if  settings['run_type_plumm'] in ['exp', 'training'] or \
         settings['run_type_chord'] in ['exp', 'training'] or \
         settings['run_type_spon_tap'] in ['exp', 'training'] or \
-        settings['run_type_dur_disc'] in ['exp', 'training'] or \
+        settings['run_type_sync_con_tap'] in ['exp', 'training'] or \
+        settings['run_type_tempo_tap'] in ['exp', 'training'] or \
+        settings['run_type_dur_est'] in ['exp', 'training'] or \
         settings['run_type_sync_tap'] in ['exp', 'training']: #dont make a subject folder if all is off
             sub_dir = os.path.join(data_dir, sub_folder_name)
             os.makedirs(sub_dir, exist_ok=True)
@@ -390,47 +405,85 @@ def run_plumm_exp():
         rate_inst_full = ''.join(rate_inst_full)
         
         #create instructions     
-        exp_inst =      ('EXPERIMENT \n\n'+
+        exp_inst =      ('EXPERIMENT INSTRUCTIONS \n\n'+
                         'Please listen closely to the following rhythms. '+ 
                         'A rhythm will be presented once in each trial. '+
-                        'On every trial you will be asked to rate. '+  
+                        'On every trial you will be asked one of these questions '+  
                         rate_inst_full +
-                        'You will use the mouse to make your ratings by clicking on the scale (1-100). '+
-                        '1 = not at all / none / very weak and '+
-                        '100 = very much / a lot / very strong. '+
+                        'You will use the keyboard (left/right) to make your ratings on the scale. '+
+                        'left: not at all / none / very weak and '+
+                        'right: very much / a lot / very strong. '+
+                        'Please make your rating based on your initial impression of the rhythm without overthinking it. \n\n'+
+                        'PRESS SPACE TO START.'  )
+        
+        train_inst =    ('PRACTICE RUN \n\n'+
+                        'Please listen closely to the following rhythms. '+ 
+                        'A rhythm will be presented once in each trial. '+
+                        'On every trial you will be asked one of these questions. '+  
+                        rate_inst_full +
+                        'You will use the keyboard (left/right) to make your ratings on the scale. '+
+                        'left: not at all / none / very weak and '+
+                        'right: very much / a lot / very strong. '+
                         'Please make your rating based on your initial impression of the rhythm without overthinking it. \n\n'+
                         'PRESS SPACE TO START.'  )
 
         # set instruction text parameters
         instr = visual.TextStim(win, text = exp_inst, height=.05, pos=(0, 0), wrapWidth=1.8, alignHoriz='center', alignVert='center')
+        # set instruction text parameters
+        instr_train = visual.TextStim(win, text = train_inst, height=.05, pos=(0, 0), wrapWidth=1.8, alignHoriz='center', alignVert='center')
         
         #welcome text
         welcome = visual.TextStim(win, text='Welcome to the experiment! \n\nPlease press space to continue.', pos=(0, 0))
 
         #break text
-        break_text = visual.TextStim(win, text='Take a short break. Press SPACE to continue.', pos=(0, 0))
+        break_text_pleasure = visual.TextStim(win, text= (rate_inst_pleasure + 'Take a short break. Press SPACE to continue.'), pos=(0, 0))
+
+        #break text
+        break_text_complexity = visual.TextStim(win, text=(rate_inst_complexity + 'Take a short break. Press SPACE to continue.'), pos=(0, 0))
         
         #make fixation cross                          
-        fixation = visual.ShapeStim(win,
-                                    vertices=((0, -0.15), (0, 0.15), (0, 0),
-                                            (-0.1, 0), (0.1, 0)),
-                                    lineWidth=13,
-                                    closeShape=False,
-                                    lineColor='white')
+        fixation =  visual.Circle(win,
+                         size=(0.2,0.23),  # Adjust the radius based on your preference
+                         fillColor=None,  # No fill
+                         lineColor='black',  # Border color
+                         lineWidth=15,  # Adjust the line width for thickness
+                         pos=(0, 0))
+        
 
         #End screen
         end = visual.TextStim(win, text = 
         'Thanks for participating \n\n'
-        'Press space to quit the experiment \n\n')
+        'Press space to quit/continue to the next experiment \n\n')
 
         #create visual rating scales 
+        """
         RatingScale = visual.RatingScale(win, low = 1, high = 100, mouseOnly=True, pos=(0, -0.1),
             scale = 'not at all                                                              very much',
             markerStart = 50, showAccept = False, stretch = 2, skipKeys = None,        
             marker='circle', size=0.85, name='plumm_rating', tickMarks = [1, 25, 50, 75, 100])
+        """
+
+        RatingScale = visual.RatingScale(
+        win,
+        low=1,
+        high=7,
+        marker='circle',
+        markerStart=4,
+        skipKeys = None,
+        stretch=2,
+        size=0.85,
+        pos=(0, -0.1),
+        scale='',
+        labels=('not at all/none', 'very much/a lot'),  # Labels only at the min and max
+        tickMarks=[1,7], #remove all other tick marks
+        mouseOnly=False,  # Allow keyboard responses
+        showAccept=False,  # Do not show the flashing text
+        acceptKeys=[],  # Do not require pressing Enter to accept the response
+        name='plumm_rating'
+        )
 
         #create a sound objects this will change later through the setsound function
-        sound_1 = sound.Sound('A', secs=8, stereo=True, hamming=True,
+        sound_1 = sound.Sound('A', secs=8, stereo=True, hamming=True, sampleRate = 44100,
         name='sound_1') #stim are 8s
         sound_duration = sound_1.getDuration() #so we know how long it has to play
         sound_1.setVolume(1.0, log=False) #1 is the max for psychopy so volume control is controlled by os
@@ -440,14 +493,20 @@ def run_plumm_exp():
         globalClock = core.Clock()  # to track the time since experiment started
 
         #draw instructions and flip it on the screen
+        
         welcome.draw()
         win.flip()
         event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
 
         #draw instructions depending what has been chosen
-        instr.draw()
-        win.flip()
-        event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
+        if settings['run_type_plumm'] == 'exp':
+            instr.draw()
+            win.flip()
+            event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
+        else:
+            instr_train.draw()
+            win.flip()
+            event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
 
         #change cwd to the stimuli map otherwise it cannot trigger the files from the map
         os.chdir(stimuli_plumm_path)
@@ -470,7 +529,7 @@ def run_plumm_exp():
         for thisTrial in trials: #everything in this loop changes per trial/block
             repetition_number = trials.thisRepN  # Get the current repetition number of the trial
             trial_number = trials.thisN
-            #Now you can use 'repetition_number' to modify something in your trials
+            #Now you can use 'repetition_number' to modify something in your trials this comes from amount of rep in the handler
             if repetition_number == 0:
                 #create rating question 
                 rate_inst = visual.TextStim(win, text = rate_inst_move, height=.07, pos=(0, .25))
@@ -486,10 +545,17 @@ def run_plumm_exp():
                 win.flip()
                 event.waitKeys(keyList=[keyNext])
 
-            if (trial_number == 12 or trial_number == 24) and settings['run_type_plumm'] == 'exp':
-                break_text.draw()
+            if (trial_number == 13) and settings['run_type_plumm'] == 'exp':
+                break_text_pleasure.draw()
                 win.flip()
-                event.waitKeys(keyList=[keyNext])       
+                event.waitKeys(keyList=[keyNext])
+            
+            if (trial_number == 26) and settings['run_type_plumm'] == 'exp':
+                break_text_complexity.draw()
+                win.flip()
+                event.waitKeys(keyList=[keyNext])
+
+
                 
             #i do not know what this does but it goes into the csv and read the headers of the lists or something, it works... 
             if thisTrial != None: #when this starts your inside the trial in this case the list of auditory stim
@@ -536,6 +602,17 @@ def run_plumm_exp():
                     #add the data to the output file
                     trials.addData('RatingScale.response', RatingScale.getRating())
                     trials.addData('RatingScale.rt', RatingScale.getRT())
+
+                    if settings['run_type_plumm'] == 'exp': #set type of rating
+                        if 0 <= trial_number <= 12:
+                            rating_type = 'move'
+                        elif 13 <= trial_number <= 25:
+                            rating_type = 'pleasure'
+                        elif 26 <= trial_number <= 38:
+                            rating_type = 'complexity'
+
+                        trials.addData('RatingScale.type', rating_type) #add to df
+
                     # using non-slip timing so subtract the expected duration of this Routine (unless ended on request)
                     if routineForceEnded:
                         routineTimer.reset()
@@ -543,6 +620,8 @@ def run_plumm_exp():
                         routineTimer.addTime(-settings['rating_time_plumm'])
 
                     dataFile_plumm.nextEntry()
+
+
 
         ###---SAVING OUTPUT/QUIT---###
         #change working directory back to the path of the python file
@@ -554,13 +633,13 @@ def run_plumm_exp():
         else:
             params = trials.trialList[0].keys()
 
-        if settings['run_type_plumm'] != 'training': #dont save training data
-            #save data for this loop
-            trials.saveAsExcel(filename_plumm + '.xlsx', sheetName='trials',
-            stimOut=params,
-            dataOut=['n','all_mean','all_std', 'all_raw'])
-            #csv
-            dataFile_plumm.saveAsWideText(filename_plumm + '.csv', delim='auto') #because of this you need to run data_file as well before using this
+        #if settings['run_type_plumm'] != 'training': #dont save training data
+        #save data for this loop
+        trials.saveAsExcel(filename_plumm + '.xlsx', sheetName='trials',
+        stimOut=params,
+        dataOut=['n','all_mean','all_std', 'all_raw'])
+        #csv
+        dataFile_plumm.saveAsWideText(filename_plumm + '.csv', delim='auto') #because of this you need to run data_file as well before using this
         
         #clean slate, a new beginning
         logging.flush()
@@ -625,15 +704,15 @@ def run_chord_exp():
                                     pos=(0, 0))
 
         #create instructions     
-        exp_inst =          'EXPERIMENT \n\n' \
+        exp_inst =          'EXPERIMENT instructions \n\n' \
                             'Please listen closely to the following chords. ' \
                             'A chord will be presented twice in each trial. ' \
-                            'On every trial you will be asked to rate. ' \
+                            'On every trial you will be asked to rate. \n' \
                             'how much you liked that chord. ' \
-                            'You will use the mouse to make your ratings by clicking on the scale (1-100). '\
-                            '1 = not at all / none / very weak and '\
-                            '100 = very much / a lot / very strong. '\
-                            'Please make your rating based on your initial impression of the chord without overthinking it. '\
+                            'You will use the keyboard(left/right) to make your ratings on the scale.\n '\
+                            'left: not at all / none / very weak\n '\
+                            'right: very much / a lot / very strong.\n '\
+                            'Please make your rating based on your initial impression of the chord without overthinking it. \n '\
                             'Remember to listen to and rate the chord and not the random note sequence in between. \n\n'\
                             'PRESS SPACE TO START.'
                             
@@ -641,12 +720,12 @@ def run_chord_exp():
         pract_inst =        'PRACTICE RUN \n\n' \
                             'Please listen closely to the following chords. ' \
                             'A chord will be presented twice in each trial. ' \
-                            'On every trial you will be asked to rate ' \
+                            'On every trial you will be asked to rate \n' \
                             'how much you liked that chord. ' \
-                            'You will use the mouse to make your ratings by clicking on the scale (1-100). '\
-                            '1 = not at all / none / very weak and '\
-                            '100 = very much / a lot / very strong. '\
-                            'Please make your rating based on your initial impression of the chord without overthinking it. '\
+                            'You will use the keyboard (left/right) to make your ratings on the scale.\n '\
+                            'left: not at all / none / very weak\n '\
+                            'right: very much / a lot / very strong.\n '\
+                            'Please make your rating based on your initial impression of the chord without overthinking it. \n'\
                             'Remember to listen to and rate the chord and not the random note sequence in between. \n\n'\
                             'PRESS SPACE TO START.'               
 
@@ -663,28 +742,49 @@ def run_chord_exp():
         rate_inst = visual.TextStim(win, text = 'How much did you like the chord?', height=.07, pos=(0, .25))
 
         #make fixation cross                          
-        fixation = visual.ShapeStim(win,
-                                        vertices=((0, -0.15), (0, 0.15), (0, 0),
-                                                (-0.1, 0), (0.1, 0)),
-                                        lineWidth=13,
-                                        closeShape=False,
-                                        lineColor='white')
+        fixation = visual.Circle(win,
+                         size=(0.2,0.23),  # Adjust the radius based on your preference
+                         fillColor=None,  # No fill
+                         lineColor='black',  # Border color
+                         lineWidth=15,  # Adjust the line width for thickness
+                         pos=(0, 0))
 
         #End screen
         end = visual.TextStim(win, text = 
             'Thanks for participating \n\n'
-            'Press space to quit the experiment \n\n')
+        'Press space to quit/continue to the next experiment \n\n')
 
+        """
         #create visual rating scales 
         RatingScale = visual.RatingScale(win, low = 1, high = 100, mouseOnly=True, pos=(0, -0.1),
                 scale = 'not at all                                                              very much',
                 markerStart = 50, showAccept = False, stretch = 2, skipKeys = None,        
                 marker='circle', size=0.85, name='Liking', tickMarks = [1, 25, 50, 75, 100])
+        """
 
-        #create a sound objects this will change later through the setsound function
-        sound_1 = sound.Sound('A', secs=2, stereo=True, hamming=True,
+        RatingScale = visual.RatingScale(
+        win,
+        low=1,
+        high=7,
+        marker='circle',
+        markerStart=4,
+        skipKeys = None,
+        stretch=2,
+        size=0.85,
+        pos=(0, -0.1),
+        scale='',
+        labels=('not at all', 'very much'),  # Labels only at the min and max
+        tickMarks=[1,7], #remove all other tick marks
+        mouseOnly=False,  # Allow keyboard responses
+        showAccept=False,  # Do not show the flashing text
+        acceptKeys=[],  # Do not require pressing Enter to accept the response
+        name='chord_rating'
+        )
+
+        #create a sound objects this will change later through the setsound function, set sammple rateeee windowsss doesnt like it otherwise
+        sound_1 = sound.Sound('A', secs=2, stereo=True, hamming=True, sampleRate=44100,
             name='sound_1') #stim are 2s
-        mask_1 = sound.Sound('A', secs=3, stereo=True, hamming=True,
+        mask_1 = sound.Sound('A', secs=3, stereo=True, hamming=True, sampleRate=44100,
             name='mask') #masks are 3s
 
         sound_duration = sound_1.getDuration() #so we know how long it has to play
@@ -790,6 +890,11 @@ def run_chord_exp():
                 #add the data to the output file
                 trials_chord.addData('RatingScale.response', RatingScale.getRating())
                 trials_chord.addData('RatingScale.rt', RatingScale.getRT())
+
+                rating_type = 'liking'
+
+                trials_chord.addData('RatingScale.type', rating_type) #add to df
+
                 # using non-slip timing so subtract the expected duration of this Routine (unless ended on request)
                 if routineForceEnded:
                     routineTimer_chord.reset()
@@ -847,27 +952,27 @@ def run_spon_tap():
                                     , pos=(0, 0))
 
         # Create a "Thank you" message end
-        end = visual.TextStim(win, text="Thank you for participating!\n\n" \
-                                    "Press space to end" 
-                                    , pos=(0, 0))
+        end = visual.TextStim(win, text='Thanks for participating \n\n'
+        'Press space to quit/continue to the next experiment \n\n',
+                                     pos=(0, 0))
 
         #Instructions spon tap message
-        instr_spon_tap = visual.TextStim(win, text= "Tap on the MIDI pad at your preferred steady tempo.\n\n" \
+        instr_spon_tap = visual.TextStim(win, text= "Tap on the MIDI pad at a comfortable rate. \n Try to maintain this rate as constant as possible.\n\n" \
                                     "Press space to continue" 
                                         , pos=(0, 0))
 
         #make fixation cross                          
-        fixation = visual.ShapeStim(win,
-                                    vertices=((0, -0.15), (0, 0.15), (0, 0),
-                                            (-0.1, 0), (0.1, 0)),
-                                    lineWidth=13,
-                                    closeShape=False,
-                                    lineColor='white')
+        fixation = visual.Circle(win,
+                         size=(0.2,0.23),  # Adjust the radius based on your preference
+                         fillColor=None,  # No fill
+                         lineColor='black',  # Border color
+                         lineWidth=15,  # Adjust the line width for thickness
+                         pos=(0, 0))
         
         
         # Create break screen
-        break_text = visual.TextStim(win, text="Pause\n\n" \
-                                     "Press Space to start"
+        break_text = visual.TextStim(win, text="Take a break\n\n" \
+                                     "Press space to repeat"
                                      , pos=(0, 0))
                 
         # Initialize lists to store tap data
@@ -980,28 +1085,29 @@ def run_spon_tap():
         # Close the window and end the experiment
         
 """
-synchronization continuation tapping task under construction
+synchronization tapping task 
 """
 
 def run_sync_tap():
     if settings['run_type_sync_tap'] in ['exp', 'training']:
         #Instructions sync tap message
-        instr_sync_tap = visual.TextStim(win, text= "Tap on the MIDI pad with the beat of the track after the count in.\n\n" \
+        instr_sync_tap = visual.TextStim(win, text= "Tap on the  pad along with the beat of the rhythm and try to synchronize your taps with the beat as best as you can.\n\n" \
                                    "Press space to start" 
                                     , pos=(0, 0))
         
         # Create a "Thank you" message end  
-        end = visual.TextStim(win, text="Thank you for participating!\n\n" \
-                                   "Press space to end" 
-                                   , pos=(0, 0))
+        end = visual.TextStim(win, text='Thanks for participating \n\n'
+        'Press space to quit/continue to the next experiment \n\n', 
+                                    pos=(0, 0))
         
         #make fixation cross                          
-        fixation = visual.ShapeStim(win,
-                                vertices=((0, -0.15), (0, 0.15), (0, 0),
-                                        (-0.1, 0), (0.1, 0)),
-                                lineWidth=13,
-                                closeShape=False,
-                                lineColor='white')
+        fixation = visual.Circle(win,
+                         size=(0.2,0.23),  # Adjust the radius based on your preference
+                         fillColor=None,  # No fill
+                         lineColor='black',  # Border color
+                         lineWidth=15,  # Adjust the line width for thickness
+                         pos=(0, 0))
+        
         # Create a "Thank you" message
         welcome = visual.TextStim(win, text="Thank you for participating!\n\n" \
                                    "Press space to continue" 
@@ -1033,10 +1139,10 @@ def run_sync_tap():
         #Read audio file names/tap along stimuli from the CSV file
         audio_files = []
         if settings['run_type_sync_tap'] == 'exp':
-            audio_files_df = pd.read_csv('stim_list_tap.csv', sep=';')
+            audio_files_df = pd.read_csv('stim_list_tap_sync.csv', sep=';')
             audio_files = audio_files_df['sync_stim_name'].tolist()
         else:
-            audio_files_df = pd.read_csv('stim_list_tap_train.csv', sep=';')
+            audio_files_df = pd.read_csv('stim_list_tap_sync_train.csv', sep=';')
             audio_files = audio_files_df['sync_stim_name'].tolist()
 
 
@@ -1052,15 +1158,17 @@ def run_sync_tap():
         total_duration_sync_audio = 0
 
         for audio_file in audio_files:
-            preloaded_audio.append(sound.Sound(audio_file)) #store sound object
+            preloaded_audio.append(sound.Sound(audio_file, stereo = True)) #store sound object
             audio_file_names.append(audio_file)  # Store the file name
-            audio = sound.Sound(audio_file) #get the full duration of all audio files
+            audio = sound.Sound(audio_file, stereo = True) #get the full duration of all audio files
             total_duration_sync_audio += audio.getDuration()
 
         # Add sync_break_duration seconds between each audio file
         total_duration_sync_audio += (len(audio_files) - 1) * settings['sync_break_duration'] #fill the empty variable
 
         #Function to trigger an audio file for sync trial
+        #windows cant handle this stuff
+        """
         def trigger_audio(audio):
             # Play the audio file
             audio.play()
@@ -1071,9 +1179,17 @@ def run_sync_tap():
             #Set the flag to signal the audio playback thread to stop
             #global audio_thread_running
             #audio_thread_running = False
+        """
+
+        global audio_thread_running
+        audio_thread_running = threading.Event()
+        audio_lock = threading.Lock()
 
         #Create a thread to play audiofor sync trial
         def audio_thread(audio_file, audio_onset_time):
+            
+            #changed because windows does weird with threading
+            """
             global audio_close_time #make it global so the tap thread can access it
             audio_duration = audio_file.getDuration()
             audio_close_time = audio_onset_time + audio_duration
@@ -1086,6 +1202,22 @@ def run_sync_tap():
             #global tap_thread_running
             #tap_thread_running = False
             #print("audio/tap thread completed")
+            """
+            global audio_thread_running, audio_close_time
+
+            #play audio and set the close time
+            audio_duration = audio_file.getDuration()
+            audio_close_time = audio_onset_time + audio_duration
+
+            #set flag to signal the audio playback thread to stop
+            with audio_lock:
+                audio_thread_running.set()
+            
+            audio_file.play()
+            time.sleep(audio_duration)
+
+            with audio_lock:
+                audio_thread_running.clear()
 
         # Create a queue for communication between threads midi and midi calcultations
         tap_queue = queue.Queue()
@@ -1223,19 +1355,296 @@ def run_sync_tap():
 
         print("Hooray another data set")
 
+
 """
-duration discrimination task under construction
+synchronization continuation tapping task under construction
+"""
+
+def run_sync_con_tap():
+    if settings['run_type_sync_con_tap'] in ['exp', 'training']:
+        #Instructions sync tap message
+        instr_sync_con_tap = visual.TextStim(win, text= "Tap on the pad along with the metronome. \n When the metronome stops continue tapping at the same rate, trying to keep your tapping as steady as possible, until you hear the beep. \n\n" \
+                                   "Press space to start" 
+                                    , pos=(0, 0))
+        
+        # Create a "Thank you" message end  
+        end = visual.TextStim(win, text='Thanks for participating \n\n'
+        'Press space to quit/continue to the next experiment \n\n', 
+                                    pos=(0, 0))
+        
+        #make fixation cross                          
+        fixation = visual.Circle(win,
+                         size=(0.2,0.23),  # Adjust the radius based on your preference
+                         fillColor=None,  # No fill
+                         lineColor='black',  # Border color
+                         lineWidth=15,  # Adjust the line width for thickness
+                         pos=(0, 0))
+        
+        # Create a "Thank you" message
+        welcome = visual.TextStim(win, text="Thank you for participating!\n\n" \
+                                   "Press space to continue" 
+                                   , pos=(0, 0))
+        
+        #draw instructions depending what has been chosen
+        welcome.draw()
+        win.flip()
+        event.waitKeys(keyList = [keyNext])
+        
+        sync_con_tap_data = []
+
+        try:
+            midi_input = mido.open_input('Arturia BeatStep')
+            print("Using Arturia BeatStep MIDI input.")
+        except IOError:
+        # If 'Arturia BeatStep' is not available, try to open 'APC Key 25'
+            try:
+                midi_input = mido.open_input('APC Key 25')
+                print("Using APC Key 25 MIDI input.")
+            except IOError:
+            # If both devices are unavailable, handle the error or set a default input
+                print("No suitable MIDI input found. Handle the error or set a default input.")
+
+
+        #change cwd to the stimuli map otherwise it cannot trigger the files from the map
+        os.chdir(stimuli_path_sync_con_tap)
+
+        #Read audio file names/tap along stimuli from the CSV file
+        audio_files = []
+        if settings['run_type_sync_con_tap'] == 'exp':
+            audio_files_df = pd.read_csv('stim_list_tap.csv', sep=';')
+            audio_files = audio_files_df['sync_stim_name'].tolist()
+        else:
+            audio_files_df = pd.read_csv('stim_list_tap_train.csv', sep=';')
+            audio_files = audio_files_df['sync_stim_name'].tolist()
+
+        #Shuffle the audio files for random order of stimuli presentation
+        random.shuffle(audio_files)
+
+        # Create a list to preload audio files
+        preloaded_audio = []
+        audio_file_names = []
+
+
+        # Preload all audio files as objects and their names and get full duration
+        #create empty variable to fill
+        total_duration_sync_con_audio = 0
+
+        for audio_file in audio_files:
+            preloaded_audio.append(sound.Sound(audio_file, stereo = True)) #store sound object set stereo windows needssss it
+            audio_file_names.append(audio_file)  # Store the file name
+            audio = sound.Sound(audio_file, stereo = True) #get the full duration of all audio files
+            total_duration_sync_con_audio += audio.getDuration()
+
+        # Add sync_break_duration seconds between each audio file
+        total_duration_sync_con_audio += (len(audio_files) - 1) * settings['sync_con_break_duration'] #fill the empty variable
+
+        # Multiply total duration by the number of audio files and add it to the total duration
+        total_duration_sync_con_audio += (len(audio_files) * 10) #seconds extra record time
+
+        global audio_thread_running_sync_con
+        audio_thread_running_sync_con = threading.Event()
+        audio_lock_sync_con = threading.Lock()
+
+        #Create a thread to play audiofor sync trial
+        def audio_thread_sync_con(audio_file, audio_onset_time):
+            
+            #changed because windows does weird with threading
+            """
+            global audio_close_time #make it global so the tap thread can access it
+            audio_duration = audio_file.getDuration()
+            audio_close_time = audio_onset_time + audio_duration
+            trigger_audio(audio_file)
+
+
+            #while time.time() < audio_close_time:
+            #    pass #keep this active until fully played the file
+
+            #global tap_thread_running
+            #tap_thread_running = False
+            #print("audio/tap thread completed")
+            """
+            global audio_thread_running_sync_con, audio_close_time
+
+            #play audio and set the close time
+            audio_duration = audio_file.getDuration()
+            audio_close_time = audio_onset_time + audio_duration
+
+            #set flag to signal the audio playback thread to stop
+            with audio_lock_sync_con:
+                audio_thread_running_sync_con.set()
+            
+            audio_file.play()
+            time.sleep(audio_duration)
+            time.sleep(10) #add 10s to the thinggg for extra recordings ma dude
+
+            with audio_lock_sync_con:
+                audio_thread_running_sync_con.clear()
+
+        # Create a queue for communication between threads midi and midi calcultations
+        tap_queue = queue.Queue()
+
+        #Create a thread for tap event recording
+        def tap_sync_thread():
+            global start_tap_time
+            start_tap_time = time.time()
+            while tap_thread_running:
+                for msg in midi_input.iter_pending():
+                    if msg.type == 'note_on':
+                        #time stamp of when the tap happend it freaks out here cannot process it fast enough if there al calculations here
+                        tap_time = time.time() #+ start_tap_time #processing slow bs going on here because runs perfect wathever you want here when not in a function..
+                        tap_velocity = msg.velocity
+                        
+                        # Create a dictionary to store tap data
+                        sync_con_tap_entry = {
+                            'tap_timing(s)': tap_time, 
+                            'tap_velocity(s)': tap_velocity,
+                            'audio_file': audio_file_name,
+                            'audio_onset_timing(s)': audio_onset_time,
+                            'audio_close_timing(s)': audio_close_time,
+                            'task': 'sync_con_tap'
+                        }
+                        
+                        # Add settings data to the single tap entry
+                        sync_con_tap_entry.update(settings)
+                        
+                        # Append the tap entry to the list of full tap data
+                        #sync_tap_data.append(sync_tap_entry)
+
+                        # Put the tap entry in the queue
+                        tap_queue.put(sync_con_tap_entry)
+
+        
+        # Function to modify 'tap_timing(s)' values in existing entries
+        def modify_tap_timings():
+            while tap_thread_running:
+                try:
+                    # Get a tap entry from the queue
+                    sync_con_tap_entry = tap_queue.get(timeout=1)  # Adjust the timeout as needed
+
+                    # Modify 'tap_timing(s)' value by subtracting start_tap_time
+                    sync_con_tap_entry['tap_timing(s)'] -= start_tap_time
+
+                    # Append the modified tap entry to the list of full tap data
+                    sync_con_tap_data.append(sync_con_tap_entry)
+                except queue.Empty:
+                    pass  # Continue the loop if the queue is empty
+
+        def play_bleep_sound():
+            # Create a sound object with a built-in beep
+            bleep_sound = sound.Sound('A', octave=4, sampleRate=44100, secs=0.2, volume=1.0, stereo = True)
+
+            # Play the sound
+            bleep_sound.play()
+
+            # Wait for the sound to finish playing
+            time.sleep(bleep_sound.getDuration())
+
+
+        #draw instructions depending what has been chosen
+        instr_sync_con_tap.draw()
+        win.flip()
+        event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
+
+        ###start of the trial###
+        #clock for the sync trial
+        start_sync_time = time.time()
+
+        #clock main
+        while time.time() - start_sync_time < total_duration_sync_con_audio:
+            
+        #Check if there are more audio files to process it goes through the whole list
+            if preloaded_audio:
+                fixation.draw()
+                win.flip()
+                
+                # Trigger audio file and record onset time
+                audio_file = preloaded_audio.pop(0)  # Take the first audio file in the list and erase it from the list
+                audio_file_name = audio_file_names.pop(0) #we need the name as well
+                audio_onset_time = time.time() - start_sync_time  # Calculate onset time once for the trial
+                print(audio_file)
+                print(preloaded_audio)
+
+                #Start audio playback thread
+                audio_playback_thread_sync_con = threading.Thread(target=audio_thread_sync_con, args=(audio_file, audio_onset_time))
+                audio_playback_thread_sync_con.start()
+
+                #Reset the flag to ensure tap thread runs
+                tap_thread_running = True
+
+                #Start tap event recording thread, also start the thread that does the calculations
+                tap_recording_thread = threading.Thread(target=tap_sync_thread)
+                modify_thread = threading.Thread(target=modify_tap_timings)
+                tap_recording_thread.start()
+                modify_thread.start()
+                
+                #Wait for audio playback thread to complete
+                audio_playback_thread_sync_con.join()
+
+                # Stop tap recording thread after audio playback completes
+                tap_thread_running = False
+                tap_recording_thread.join()
+
+                play_bleep_sound()
+
+            #a break before the next audio file
+            time.sleep(settings['sync_break_duration'])
+
+        #change working directory back to the path of the python file to save correctly
+        os.chdir(my_path)
+
+        #i made this for individual task maybe not nice but just to be sure data from seperate tasks is handled seperatly
+        def append_to_csv_sync(filename, tap_data):
+            if not tap_data:
+                print("No data to append.")
+                return
+            if not filename.endswith(".csv"):
+                filename += ".csv" #if the filename doesnt have the extension .csv add it
+            with open(filename, 'a', newline='') as csvfile: #a means append
+                csvwriter = csv.DictWriter(csvfile,  fieldnames=tap_data[0].keys())
+
+                # If the file is empty, write the headers
+                if csvfile.tell() == 0:
+                    csvwriter.writeheader()
+
+                # Write tap data without writing headers again
+                csvwriter.writerows(tap_data)
+
+        # Call the append_to_csv function to append the collected data to the existing CSV file
+
+        append_to_csv_sync(tap_filename, sync_con_tap_data)
+
+        print(f"Data appended to {tap_filename}")
+
+        #Close the MIDI input when the experiment is done
+        midi_input.close()
+
+        # Display the "Thank you" message until space
+        end.draw()
+
+        #close thread!!!
+        tap_thread_running = False
+        tap_recording_thread.join()
+        modify_thread.join()
+        
+        win.flip()
+        event.waitKeys(keyList = [keyNext])   # key stroke ends it all
+
+        print("Hooray another data set")
+
+"""
+duration estimation task
 """
 
 def run_dur_est():
     if settings['run_type_dur_est'] in ['training' or 'exp']:    
         #make fixation cross                          
-        fixation = visual.ShapeStim(win,
-                                vertices=((0, -0.15), (0, 0.15), (0, 0),
-                                        (-0.1, 0), (0.1, 0)),
-                                lineWidth=13,
-                                closeShape=False,
-                                lineColor='white')
+        fixation = visual.Circle(win,
+                         size=(0.2,0.23),  # Adjust the radius based on your preference
+                         fillColor=None,  # No fill
+                         lineColor='black',  # Border color
+                         lineWidth=15,  # Adjust the line width for thickness
+                         pos=(0, 0))
+        
         # Create a "Thank you" message
         welcome = visual.TextStim(win, text="Thank you for participating!\n\n" \
                                    "Press space to continue" 
@@ -1312,7 +1721,280 @@ def run_dur_est():
         append_to_csv_sync(tap_filename, dur_est_data)
 
         print(f"Data appended to {tap_filename}")
+
+"""
+tempo change tapping task 
+"""
+
+def run_tempo_tap():
+    if settings['run_type_tempo_tap'] in ['exp', 'training']:
+        #Instructions sync tap message
+        instr_tempo_tap = visual.TextStim(win, text= "Tap on the pad along with the tones try to synchronize with the tones as best as possible. \n\n" \
+                                   "Press space to start" 
+                                    , pos=(0, 0))
         
+        # Create a "Thank you" message end  
+        end = visual.TextStim(win, text='Thanks for participating \n\n'
+        'Press space to quit/continue to the next experiment \n\n', 
+                                    pos=(0, 0))
+        
+        #make fixation cross                          
+        fixation = visual.Circle(win,
+                         size=(0.2,0.23),  # Adjust the radius based on your preference
+                         fillColor=None,  # No fill
+                         lineColor='black',  # Border color
+                         lineWidth=15,  # Adjust the line width for thickness
+                         pos=(0, 0))
+        
+        # Create a "Thank you" message
+        welcome = visual.TextStim(win, text="Thank you for participating!\n\n" \
+                                   "Press space to continue" 
+                                   , pos=(0, 0))
+        
+        #draw instructions depending what has been chosen
+        welcome.draw()
+        win.flip()
+        event.waitKeys(keyList = [keyNext])
+        
+        tempo_tap_data = []
+
+        try:
+            midi_input = mido.open_input('Arturia BeatStep')
+            print("Using Arturia BeatStep MIDI input.")
+        except IOError:
+        # If 'Arturia BeatStep' is not available, try to open 'APC Key 25'
+            try:
+                midi_input = mido.open_input('APC Key 25')
+                print("Using APC Key 25 MIDI input.")
+            except IOError:
+            # If both devices are unavailable, handle the error or set a default input
+                print("No suitable MIDI input found. Handle the error or set a default input.")
+
+
+        #change cwd to the stimuli map otherwise it cannot trigger the files from the map
+        os.chdir(stimuli_path_tempo_tap)
+
+        #Read audio file names/tap along stimuli from the CSV file
+        audio_files = []
+        if settings['run_type_tempo_tap'] == 'exp':
+            audio_files_df = pd.read_csv('stim_list_tempo_tap.csv', sep=';')
+            audio_files = audio_files_df['stim_name'].tolist()
+        else:
+            audio_files_df = pd.read_csv('stim_list_tempo_tap_train.csv', sep=';')
+            audio_files = audio_files_df['stim_name'].tolist()
+        
+
+        #Shuffle the audio files for random order of stimuli presentation
+        random.shuffle(audio_files)
+
+        # Create a list to preload audio files
+        preloaded_audio = []
+        audio_file_names = []
+
+        # Preload all audio files as objects and their names and get full duration
+        #create empty variable to fill
+        total_duration_tempo_audio = 0
+
+        for audio_file in audio_files:
+            preloaded_audio.append(sound.Sound(audio_file, stereo = True)) #store sound object
+            audio_file_names.append(audio_file)  # Store the file name
+            audio = sound.Sound(audio_file, stereo = True) #get the full duration of all audio files
+            total_duration_tempo_audio += audio.getDuration()
+
+        # Add sync_break_duration seconds between each audio file
+        total_duration_tempo_audio += (len(audio_files) - 1) * settings['tempo_break_duration'] #fill the empty variable
+
+        #Function to trigger an audio file for sync trial
+        #windows cant handle this stuff
+
+        """
+        def trigger_audio(audio):
+            # Play the audio file
+            audio.play()
+            print(f"Playing audio file: {audio}")
+            core.wait(audio.getDuration())
+            audio.stop()
+
+            #Set the flag to signal the audio playback thread to stop
+            #global audio_thread_running
+            #audio_thread_running = False
+        """
+
+        global audio_thread_running
+        audio_thread_running = threading.Event()
+        audio_lock = threading.Lock()
+
+        #Create a thread to play audiofor sync trial
+        def audio_thread(audio_file, audio_onset_time):
+            
+            #changed because windows does weird with threading
+            """
+            global audio_close_time #make it global so the tap thread can access it
+            audio_duration = audio_file.getDuration()
+            audio_close_time = audio_onset_time + audio_duration
+            trigger_audio(audio_file)
+
+
+            #while time.time() < audio_close_time:
+            #    pass #keep this active until fully played the file
+
+            #global tap_thread_running
+            #tap_thread_running = False
+            #print("audio/tap thread completed")
+            """
+            global audio_thread_running, audio_close_time
+
+            #play audio and set the close time
+            audio_duration = audio_file.getDuration()
+            audio_close_time = audio_onset_time + audio_duration
+
+            #set flag to signal the audio playback thread to stop
+            with audio_lock:
+                audio_thread_running.set()
+            
+            audio_file.play()
+            time.sleep(audio_duration)
+
+            with audio_lock:
+                audio_thread_running.clear()
+
+        # Create a queue for communication between threads midi and midi calcultations
+        tap_queue = queue.Queue()
+
+        #Create a thread for tap event recording
+        def tap_sync_thread():
+            global start_tap_time
+            start_tap_time = time.time()
+            while tap_thread_running:
+                for msg in midi_input.iter_pending():
+                    if msg.type == 'note_on':
+                        #time stamp of when the tap happend it freaks out here cannot process it fast enough if there al calculations here
+                        tap_time = time.time() #+ start_tap_time #processing slow bs going on here because runs perfect wathever you want here when not in a function..
+                        tap_velocity = msg.velocity
+                        
+                        # Create a dictionary to store tap data
+                        tempo_tap_entry = {
+                            'tap_timing(s)': tap_time, 
+                            'tap_velocity(s)': tap_velocity,
+                            'audio_file': audio_file_name,
+                            'audio_onset_timing(s)': audio_onset_time,
+                            'audio_close_timing(s)': audio_close_time,
+                            'task': 'tempo_tap'
+                        }
+                        
+                        # Add settings data to the single tap entry
+                        tempo_tap_entry.update(settings)
+                        
+                        # Append the tap entry to the list of full tap data
+                        #sync_tap_data.append(sync_tap_entry)
+
+                        # Put the tap entry in the queue
+                        tap_queue.put(tempo_tap_entry)
+
+        
+        # Function to modify 'tap_timing(s)' values in existing entries
+        def modify_tap_timings():
+            while tap_thread_running:
+                try:
+                    # Get a tap entry from the queue
+                    tempo_tap_entry = tap_queue.get(timeout=1)  # Adjust the timeout as needed
+
+                    # Modify 'tap_timing(s)' value by subtracting start_tap_time
+                    tempo_tap_entry['tap_timing(s)'] -= start_tap_time
+
+                    # Append the modified tap entry to the list of full tap data
+                    tempo_tap_data.append(tempo_tap_entry)
+                except queue.Empty:
+                    pass  # Continue the loop if the queue is empty
+
+
+        #draw instructions depending what has been chosen
+        instr_tempo_tap.draw()
+        win.flip()
+        event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
+
+        ###start of the trial###
+        #clock for the sync trial
+        start_sync_time = time.time()
+
+        #clock main
+        while time.time() - start_sync_time < total_duration_tempo_audio:
+            
+        #Check if there are more audio files to process it goes through the whole list
+            if preloaded_audio:
+                fixation.draw()
+                win.flip()
+                # Trigger audio file and record onset time
+                audio_file = preloaded_audio.pop(0)  # Take the first audio file in the list and erase it from the list
+                audio_file_name = audio_file_names.pop(0) #we need the name as well
+                audio_onset_time = time.time() - start_sync_time  # Calculate onset time once for the trial
+
+                #Start audio playback thread
+                audio_playback_thread = threading.Thread(target=audio_thread, args=(audio_file, audio_onset_time))
+                audio_playback_thread.start()
+
+                #Reset the flag to ensure tap thread runs
+                tap_thread_running = True
+
+                #Start tap event recording thread, also start the thread that does the calculations
+                tap_recording_thread = threading.Thread(target=tap_sync_thread)
+                modify_thread = threading.Thread(target=modify_tap_timings)
+                tap_recording_thread.start()
+                modify_thread.start()
+                
+                #Wait for audio playback thread to complete
+                audio_playback_thread.join()
+
+                # Stop tap recording thread after audio playback completes
+                tap_thread_running = False
+                tap_recording_thread.join()
+
+            #a break before the next audio file
+            time.sleep(settings['tempo_break_duration'])
+
+        #change working directory back to the path of the python file to save correctly
+        os.chdir(my_path)
+
+        #i made this for individual task maybe not nice but just to be sure data from seperate tasks is handled seperatly
+        def append_to_csv_sync(filename, tap_data):
+            if not tap_data:
+                print("No data to append.")
+                return
+            if not filename.endswith(".csv"):
+                filename += ".csv" #if the filename doesnt have the extension .csv add it
+            with open(filename, 'a', newline='') as csvfile: #a means append
+                csvwriter = csv.DictWriter(csvfile,  fieldnames=tap_data[0].keys())
+
+                # If the file is empty, write the headers
+                if csvfile.tell() == 0:
+                    csvwriter.writeheader()
+
+                # Write tap data without writing headers again
+                csvwriter.writerows(tap_data)
+
+        # Call the append_to_csv function to append the collected data to the existing CSV file
+
+        append_to_csv_sync(tap_filename, tempo_tap_data)
+
+        print(f"Data appended to {tap_filename}")
+
+        #Close the MIDI input when the experiment is done
+        midi_input.close()
+
+        # Display the "Thank you" message until space
+        end.draw()
+
+        #close thread!!!
+        tap_thread_running = False
+        tap_recording_thread.join()
+        modify_thread.join()
+        
+        win.flip()
+        event.waitKeys(keyList = [keyNext])   # key stroke ends it all
+
+        print("Hooray another data set")
+
+
 
 
 

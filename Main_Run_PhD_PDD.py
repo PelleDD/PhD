@@ -30,7 +30,7 @@ from contextlib import contextmanager
 import queue
 
 #custom functions
-from Main_Dopamine_PhD_PDD_BEH import run_dur_disc, run_gui_path, data_file_plumm, run_plumm_exp, tap_data_file, data_file_chord, make_list_chord, run_chord_exp, check_and_install_library, find_midi_ports, run_spon_tap, run_sync_tap #this is from the mothership
+from Main_Dopamine_PhD_PDD_BEH import run_sync_con_tap, run_tempo_tap, run_dur_est, run_gui_path, data_file_plumm, run_plumm_exp, tap_data_file, data_file_chord, make_list_chord, run_chord_exp, check_and_install_library, find_midi_ports, run_spon_tap, run_sync_tap #this is from the mothership
 
 #external imports for midi
 required_versions = {
@@ -43,6 +43,10 @@ check_and_install_library("mido", required_versions["mido"])
 
 # Check and install python-rtmidi
 check_and_install_library("python-rtmidi", required_versions["python-rtmidi"])
+
+#import
+import mido
+import rtmidi
 
 #check for midi gear 
 find_midi_ports()
@@ -59,23 +63,29 @@ data_file_chord()
 #stim and mask list, makes a personal csv for every participant
 make_list_chord()
 
-#finally, run the Plumm experiment if that's what you need and want, it will not run if off is chosen.
-run_plumm_exp()
-
-#run chord paradigm
-run_chord_exp()
-
 #data file tapping stuff
 tap_data_file()
 
 #run spon tap exp
 run_spon_tap()
 
+#finally, run the Plumm experiment if that's what you need and want, it will not run if off is chosen.
+run_plumm_exp()
+
+#run chord paradigm
+run_chord_exp()
+
 #run sync tap
 run_sync_tap()
 
+#run
+run_sync_con_tap()
+
+#run
+run_tempo_tap()
+
 #run dur disc task
-run_dur_disc()
+run_dur_est()
 
 #i said shutdownnnnnn skrrt
 core.quit()
