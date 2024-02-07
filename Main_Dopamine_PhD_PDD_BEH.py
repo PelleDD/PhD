@@ -67,7 +67,7 @@ import psychopy as pp
 pp.useVersion('2023.2.2') #force version of psychopy everything after is based on this version
 from psychopy import prefs
 prefs.general['audioLib'] = ['pyo'] #this has to be imported before the sound module
-from psychopy import gui, core, logging, event, visual, data, sound
+from psychopy import gui, core, logging, event, visual, data, sound, parallel
 sound.init(44100, buffer=128) #set audio buffers apparently this works best without cracks etc
 from psychopy import __version__
 from psychopy.hardware import keyboard
@@ -194,7 +194,7 @@ def run_gui_path():
                 'subject': '0',  # Subject code use for loading/saving data
                 'gender': ['male', 'female', 'other'],
                 'age': '',
-                'session': '1', #session 
+                'session': '', #session 
                 'run_type_plumm': ['training','exp','off'], #run type for plumm paradigm or turn off
                 'run_type_chord': ['training','exp', 'off'], #run type for chord paradigm or turn off
                 'run_type_spon_tap': ['training','exp', 'off'], #run type for spontaneous tapping task 
@@ -202,7 +202,8 @@ def run_gui_path():
                 'run_type_sync_con_tap': ['training','exp', 'off'], #run type for the synchronisation continuation tsk
                 'run_type_tempo_tap': ['training','exp', 'off'], #run type for tempo changing tapping task
                 'run_type_dur_est': ['training','exp', 'off'], #run type for duration discrmination task
-                'debug': True,  # If true, small window, print extra info
+                'parallel_port': ['on','off'], #using paralell port to use with eye tracker
+                'debug': False,  # If true, small window, print extra info
                 'home_dir': my_path, #not really being used but maybe handy to see where all this stuff is running from
                 'after_stim_plumm': 0, #time between end of stim and appearance of rating scale
                 'rating_time_plumm': 7, # number of seconds to make rating       
@@ -303,6 +304,28 @@ def run_gui_path():
 
     #return settings, data_path
 
+#triggers for eye tracking with parallel port if turned on
+#Send a number gives a number output
+#send 1 - 4 shows up in out put
+#2 - 1
+#4 - 5
+#5 - 2
+
+#use this in a function if you need triggers in an experiment
+#send trigger is a function you then can use
+
+#if settings['parallel_port'] == 'on':
+#    from psychopy import parallel
+#    pPort = 0x3FF8
+#    global port
+#    port = parallel.ParallelPort(address=pPort)     
+#    def send_trigger(triggerCode):
+#        port.setData(triggerCode)
+#        core.wait(0.1)
+#        port.setData(0)
+
+
+
 """
 MAKING OF CHORD/MASK list for Chord Paradigm
 
@@ -395,6 +418,16 @@ name of stim get read out of a csv inside of a stimuli map where the wav files a
 """
 
 def run_plumm_exp():
+    if settings['parallel_port'] == 'on':
+        from psychopy import parallel
+        pPort = 0x3FF8
+        port = parallel.ParallelPort(address=pPort)     
+        def send_trigger(triggerCode):
+            port.setData(triggerCode)
+            core.wait(0.1)
+            port.setData(0)
+            core.wait(0.1)
+
     if settings['run_type_plumm'] in ['exp', 'training']: #if off dont run this
         #rating instructions
         rate_inst_move = '\n\nHow much did this musical pattern make you want to move? \n\n'
@@ -434,6 +467,9 @@ def run_plumm_exp():
         
         #welcome text
         welcome = visual.TextStim(win, text='Welcome to the experiment! \n\nPlease press space to continue.', pos=(0, 0))
+
+        #break text
+        break_text = visual.TextStim(win, text= ('Take a short break. Press SPACE to continue.'), pos=(0, 0))
 
         #break text
         break_text_pleasure = visual.TextStim(win, text= (rate_inst_pleasure + 'Take a short break. Press SPACE to continue.'), pos=(0, 0))
@@ -576,8 +612,12 @@ def run_plumm_exp():
                     while routineTimer.getTime() < (sound_duration):
                         fixation.draw()
                         sound_1.play(when=win)
+                        if settings['parallel_port'] == 'on': #if we need triggers eye tracking
+                            send_trigger(5)
                         win.flip()
                         core.wait(sound_duration + settings['after_stim_plumm'])
+                        if settings['parallel_port'] == 'on': #if we need triggers eye tracking
+                            send_trigger(1)
                         if event.getKeys(keyList = [keyESC]): #press 'escape'
                             logging.flush()
                             core.quit()
@@ -944,6 +984,16 @@ Spontaneous tapping task
 """
 
 def run_spon_tap():
+    if settings['parallel_port'] == 'on':
+        from psychopy import parallel
+        pPort = 0x3FF8
+        port = parallel.ParallelPort(address=pPort)     
+        def send_trigger(triggerCode):
+            port.setData(triggerCode)
+            core.wait(0.1)
+            port.setData(0)
+            core.wait(0.1)
+
     if settings['run_type_spon_tap'] in ['exp', 'training']: #if off dont run this
         
         # Create a "Thank you" message
@@ -986,7 +1036,7 @@ def run_spon_tap():
         spon_tap_data = []
 
         #lets try to open the gates of midi, change names wathever you are using
-        midi_device_1 = 'Arturia BeatStep'
+        midi_device_1 = 'Arturia BeatStep 0'
         midi_device_2 = 'APC Key 25'
         try:
             midi_input = mido.open_input(midi_device_1)
@@ -1006,6 +1056,8 @@ def run_spon_tap():
 
         #draw instructions and flip it on the screen
         welcome.draw()
+        if settings['parallel_port'] == 'on': #if we need triggers eye tracking
+            send_trigger(2) #trigger as start mark of the experiment
         win.flip()
         event.waitKeys(keyList = [keyNext])     #list restricts options for key presses, waiting for space
 
@@ -1727,6 +1779,16 @@ tempo change tapping task
 """
 
 def run_tempo_tap():
+    if settings['parallel_port'] == 'on':
+        from psychopy import parallel
+        pPort = 0x3FF8
+        port = parallel.ParallelPort(address=pPort)     
+        def send_trigger(triggerCode):
+            port.setData(triggerCode)
+            core.wait(0.1)
+            port.setData(0)
+            core.wait(0.02)
+
     if settings['run_type_tempo_tap'] in ['exp', 'training']:
         #Instructions sync tap message
         instr_tempo_tap = visual.TextStim(win, text= "Tap on the pad along with the tones try to synchronize with the tones as best as possible. \n\n" \
@@ -1988,7 +2050,8 @@ def run_tempo_tap():
         tap_thread_running = False
         tap_recording_thread.join()
         modify_thread.join()
-        
+        if settings['parallel_port'] == 'on': #if we need triggers eye tracking trigger for end experiment
+            send_trigger(2)
         win.flip()
         event.waitKeys(keyList = [keyNext])   # key stroke ends it all
 

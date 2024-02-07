@@ -14,7 +14,7 @@ import psychopy as pp
 pp.useVersion('2023.2.2') #force version of psychopy everything after is based on this version
 from psychopy import prefs
 prefs.general['audioLib'] = ['pyo'] #this has to be imported before the sound module
-from psychopy import gui, core, logging, event, visual, data, sound
+from psychopy import gui, core, logging, event, visual, data, sound, parallel
 sound.init(44100, buffer=128) #set audio buffers apparently this works best without cracks etc
 from psychopy import __version__
 from psychopy.hardware import keyboard
